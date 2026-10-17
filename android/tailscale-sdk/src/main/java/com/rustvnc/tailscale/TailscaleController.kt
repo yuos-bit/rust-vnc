@@ -48,8 +48,8 @@ interface TailscaleController {
      * Starts the tunnel.
      *
      * @param preAuthKey a pre-auth key provisioned for this controller. The
-     *   pairing server only issues pre-auth keys to controlled endpoints, so
-     *   this key must be created separately (see android/README.md).
+     *   pairing server can mint one through `POST /api/v1/controllers/enroll`
+     *   (or an administrator can create it with `headscale preauthkeys create`).
      * @param controlUrl Headscale/Tailscale control-plane URL.
      * @param hostname hostname the controller registers under in the tailnet.
      */

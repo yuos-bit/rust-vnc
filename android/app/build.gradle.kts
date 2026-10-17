@@ -56,7 +56,7 @@ android {
             } else {
                 // Local release builds remain installable; CI always writes
                 // keystore.properties from the generated self-signed key.
-                signingConfigs.getByName("debug")
+                signingConfigs.findByName("debug")
             }
         }
     }

@@ -114,9 +114,18 @@ jobs:
           RVNC_VERSION_NAME: ${{ needs.version.outputs.version }}
           RVNC_VERSION_CODE: ${{ needs.version.outputs.version_code }}
         run: |
+          set -o pipefail
           gradle :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace \
             -PrvncVersionName="$RVNC_VERSION_NAME" \
-            -PrvncVersionCode="$RVNC_VERSION_CODE"
+            -PrvncVersionCode="$RVNC_VERSION_CODE" 2>&1 | tee /tmp/gradle-build.log
+
+      - name: Upload Gradle failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-gradle-log-${{ needs.version.outputs.version }}
+          path: /tmp/gradle-build.log
+          if-no-files-found: ignore
 
       - name: Verify signature and collect artifacts
         working-directory: android
