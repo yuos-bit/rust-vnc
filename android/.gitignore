@@ -1,0 +1,15 @@
+# Gradle / Android Studio
+.gradle/
+build/
+/app/build/
+/tailscale-sdk/build/
+/local.properties
+/.idea/
+*.iml
+.DS_Store
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# Locally built Tailscale AAR (large binary; distribute separately)
+/app/libs/*.aar

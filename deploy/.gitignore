@@ -1,0 +1,9 @@
+# 部署密钥与运行时数据
+.env
+data/
+backup/
+
+# derper 证书与私钥（由运维单独备份）
+derp/certs/*.crt
+derp/certs/*.key
+derp/certs/*.pem

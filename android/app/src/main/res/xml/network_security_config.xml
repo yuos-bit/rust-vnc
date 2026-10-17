@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Production traffic must use HTTPS. Cleartext is permitted only for the
+  development loopback aliases, which are useful when running the pairing
+  server on the emulator host. Any other http:// server URL will be blocked
+  by the platform; use a TLS terminator (or add an explicit exception here
+  for a lab-only build).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

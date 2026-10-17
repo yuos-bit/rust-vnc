@@ -1,0 +1,46 @@
+# RustVNC 反向代理配置（Caddy 自动 HTTPS）
+#
+# 环境变量由 docker-compose.yml 注入：
+#   RVNC_DOMAIN       配对后台/管理台的公开域名
+#   HEADSCALE_DOMAIN  Headscale 控制面的公开域名
+#   ACME_EMAIL        Let's Encrypt 账户邮箱
+#
+# 严禁把 derper 加入本文件：DERP 必须由 Tailscale 客户端直连，
+# 经过 HTTP 代理/负载均衡会导致中继与证书校验异常。
+
+{
+	email {$ACME_EMAIL}
+	# 管理 API 默认监听 localhost:2019，容器内不影响外部；如需彻底关闭：
+	# admin off
+}
+
+{$RVNC_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# 可选的来源限制：只允许指定出口 IP 访问管理台与管理员 API。
+	# 启用前请把 203.0.113.10 换成真实地址。
+	# @admin {
+	# 	path /admin* /api/admin*
+	# 	not remote_ip 203.0.113.10
+	# }
+	# respond @admin "Forbidden" 403
+
+	# 覆盖客户端可伪造的转发头，确保 rv-server 的按 IP 限流看到真实来源。
+	# 如果 Caddy 前面还有可信代理/CDN，请改为传递该代理提供的真实客户端地址。
+	reverse_proxy rv-server:8080 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+{$HEADSCALE_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy headscale:8080
+}

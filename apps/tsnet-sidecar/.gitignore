@@ -1,0 +1,6 @@
+# tsnet 状态目录包含节点私钥与登录状态，绝不能提交
+/tsnet-state/
+
+# 本地构建产物
+/rvnc-tsnet
+/rvnc-tsnet.exe

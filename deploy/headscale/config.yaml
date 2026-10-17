@@ -1,0 +1,91 @@
+# Headscale 配置模板（RustVNC）
+#
+# 使用前必须修改的占位符：
+#   server_url            -> 你的 Headscale 公网地址（必须 HTTPS，且与 Caddy 域名一致）
+#   dns.base_domain       -> MagicDNS 使用的域名（无需公网解析）
+#   derp.urls             -> 你的 derper 地址（必须包含外部端口）
+#
+# 版本说明：
+#   * 本模板面向 Headscale 0.25+（使用 prefixes.v4/v6）。
+#   * 若使用 <=0.24，请把 prefixes 替换为旧的列表写法：
+#       ip_prefixes:
+#         - 100.64.0.0/10
+#         - fd7a:115c:a1e0::/48
+#   * 升级 Headscale 前先备份数据库并阅读对应版本的 release notes。
+#
+# 注意：Headscale 不会展开本文件中的环境变量；请直接修改本文件。
+
+server_url: https://headscale.example.com
+
+# 容器内监听；由 Caddy 反向代理，不直接暴露到公网。
+listen_addr: 0.0.0.0:8080
+metrics_listen_addr: 127.0.0.1:9090
+grpc_listen_addr: 127.0.0.1:50443
+grpc_allow_insecure: false
+
+# 节点 Noise 私钥；必须放在持久化卷中。
+noise:
+  private_key_path: /var/lib/headscale/noise_private.key
+
+# Tailscale CGNAT 地址段（设备会获得 100.64.0.0/10 地址）。
+prefixes:
+  v4: 100.64.0.0/10
+  v6: fd7a:115c:a1e0::/48
+
+# 自建 DERP。务必与 deploy/.env 的 DERP_URL 保持一致。
+# 单机部署时 derper 发布在 8443；若使用 443，去掉端口即可。
+derp:
+  server:
+    # 不使用 Headscale 内嵌 DERP；STUN 由独立 derper 提供。
+    enabled: false
+    region_id: 999
+    region_code: "headscale"
+    region_name: "Headscale Embedded DERP"
+    stun_listen_addr: "0.0.0.0:3478"
+  urls:
+    - https://derp.example.com:8443
+    # 可选：保留 Tailscale 官方 DERP 作为兜底，但业务流量仍由自建 P2P/DERP 承载。
+    - https://controlplane.tailscale.com/derpmap/default
+  paths: []
+  auto_update_enabled: true
+  update_frequency: 24h
+
+# 关闭外网版本检查（无外网或希望减少出站请求时可保持 true）。
+disable_check_updates: true
+
+# 节点心跳超时。
+ephemeral_node_inactivity_timeout: 30m
+
+# SQLite 数据库；持久化到命名卷 headscale-data。
+database:
+  type: sqlite
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+
+log:
+  level: info
+  format: text
+
+# MagicDNS：控制端可直接用 rvnc-xxxx 主机名访问，但 rv-server 返回的是 100.x IP。
+dns:
+  magic_dns: true
+  base_domain: rvnc.internal
+  nameservers:
+    global:
+      - 1.1.1.1
+      - 8.8.8.8
+  search_domains: []
+
+# CLI（docker compose exec headscale headscale ...）通过该 socket 通信。
+unix_socket: /var/run/headscale/headscale.sock
+unix_socket_permission: "0770"
+
+# 预授权密钥（pre-auth key）的有效期在“创建时”指定，配置文件不提供全局 TTL。
+# rv-server 通过 POST /api/v1/preauthkey 创建密钥时未传 expiration，使用 Headscale 默认值；
+# 手工创建（headscale preauthkeys create）时可用 --expiration 指定。
+
+# 可选：访问控制策略。建议至少限制只有控制端可以访问被控端的 21416 端口。
+# 启用前请确认当前 Headscale 版本支持 policy.mode；旧版本使用文件模式：
+# policy:
+#   mode: file
+#   path: /etc/headscale/policy.hujson

@@ -1,0 +1,26 @@
+[package]
+name = "rv-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "RustVNC pairing backend and web administration console"
+
+[[bin]]
+name = "rv-server"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.8"
+getrandom = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+rv-core = { workspace = true }
+rv-net = { workspace = true }
+rv-proto = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { version = "0.3", features = ["formatting"] }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

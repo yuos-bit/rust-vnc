@@ -1,0 +1,22 @@
+[package]
+name = "rv-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Controlled-endpoint and controller session engines"
+
+[dependencies]
+base64 = { workspace = true }
+getrandom = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rv-capture = { workspace = true }
+rv-core = { workspace = true }
+rv-input = { workspace = true }
+rv-net = { workspace = true }
+rv-proto = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = "0.7"
+tracing = { workspace = true }

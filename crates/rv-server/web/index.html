@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>RustVNC · 管理后台</title>
+  <link rel="icon" href="/admin/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/admin/styles.css" />
+</head>
+<body>
+  <div class="orb orb-a" aria-hidden="true"></div>
+  <div class="orb orb-b" aria-hidden="true"></div>
+  <div class="orb orb-c" aria-hidden="true"></div>
+
+  <header class="topbar glass">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none">
+          <rect x="3" y="5" width="26" height="18" rx="3.5" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M11 27h10M16 23v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="16" cy="14" r="4" fill="currentColor" opacity=".85"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <strong>RustVNC</strong>
+        <span>配对管理后台</span>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="主导航">
+      <button class="nav-link is-active" data-view="devices" type="button">设备总览</button>
+      <button class="nav-link" data-view="tokens" type="button">令牌管理</button>
+      <button class="nav-link" data-view="pairings" type="button">配对记录</button>
+    </nav>
+
+    <button class="icon-btn" id="settingsBtn" type="button" title="设置" aria-label="设置">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M19.1 12a7.2 7.2 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.3 7.3 0 0 0-2.1-1.2L14.2 3h-4.3l-.4 2.6a7.3 7.3 0 0 0-2.1 1.2l-2.4-1-2 3.4 2 1.6a7.2 7.2 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.3 7.3 0 0 0 2.1 1.2l.4 2.6h4.3l.4-2.6a7.3 7.3 0 0 0 2.1-1.2l2.4 1 2-3.4-2-1.6c.06-.4.1-.8.1-1.2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </header>
+
+  <main class="app">
+    <section class="view is-visible" id="view-devices">
+      <div class="page-head">
+        <div>
+          <h1>设备总览</h1>
+          <p>查看已注册的被控端、在线状态与配对情况。</p>
+        </div>
+        <button class="ghost-btn" id="refreshBtn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          刷新
+        </button>
+      </div>
+
+      <div class="stats-grid">
+        <article class="glass stat-card">
+          <span class="stat-label">在线设备</span>
+          <strong class="stat-value" id="statOnline">–</strong>
+          <span class="stat-hint" id="statTotal">共 – 台</span>
+        </article>
+        <article class="glass stat-card">
+          <span class="stat-label">有效令牌</span>
+          <strong class="stat-value" id="statTokens">–</strong>
+          <span class="stat-hint">未吊销且未过期</span>
+        </article>
+        <article class="glass stat-card">
+          <span class="stat-label">今日配对</span>
+          <strong class="stat-value" id="statPairings">–</strong>
+          <span class="stat-hint">成功配对次数</span>
+        </article>
+      </div>
+
+      <div class="glass table-card">
+        <div class="table-toolbar">
+          <label class="search">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <input id="deviceFilter" type="search" placeholder="搜索设备码 / 名称 / IP" autocomplete="off" />
+          </label>
+          <span class="muted" id="deviceCount"></span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>状态</th>
+                <th>设备码</th>
+                <th>名称</th>
+                <th>平台</th>
+                <th>Tailscale IP</th>
+                <th>已配对</th>
+                <th>最近在线</th>
+                <th class="right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="devicesBody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="devicesEmpty" hidden>
+          <span class="empty-icon">⌁</span>
+          <p>还没有被控端注册。启动 PC 端并选择“作为被控端”即可。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-tokens">
+      <div class="page-head">
+        <div>
+          <h1>令牌管理</h1>
+          <p>免密连接令牌。吊销后，控制端需重新输入密码配对。</p>
+        </div>
+      </div>
+      <div class="glass table-card">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>状态</th>
+                <th>设备</th>
+                <th>控制端</th>
+                <th>平台</th>
+                <th>签发时间</th>
+                <th>到期时间</th>
+                <th>最近使用</th>
+                <th class="right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="tokensBody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="tokensEmpty" hidden>
+          <span class="empty-icon">⌁</span>
+          <p>暂无令牌。控制端完成一次配对后会出现在这里。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-pairings">
+      <div class="page-head">
+        <div>
+          <h1>配对记录</h1>
+          <p>最近的配对尝试，包括失败原因与来源地址。</p>
+        </div>
+        <div class="segmented" id="pairingLimit" role="group" aria-label="记录数量">
+          <button class="is-active" data-limit="100" type="button">100 条</button>
+          <button data-limit="300" type="button">300 条</button>
+        </div>
+      </div>
+      <div class="glass table-card">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>设备码</th>
+                <th>控制端</th>
+                <th>来源 IP</th>
+                <th>结果</th>
+                <th>原因</th>
+              </tr>
+            </thead>
+            <tbody id="pairingsBody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="pairingsEmpty" hidden>
+          <span class="empty-icon">⌁</span>
+          <p>暂无配对记录。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-settings">
+      <div class="page-head">
+        <div>
+          <h1>设置</h1>
+          <p>配置 Headscale 控制面、DERP 信息与令牌策略。</p>
+        </div>
+      </div>
+
+      <form class="settings-grid" id="settingsForm">
+        <article class="glass settings-card">
+          <header>
+            <h2>网络控制面</h2>
+            <span class="muted">Headscale REST API</span>
+          </header>
+          <label class="field">
+            <span>Headscale API 地址</span>
+            <input name="headscale_url" id="headscaleUrl" type="url" placeholder="https://headscale.example.com" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>API Key <em id="apiKeyState" class="tag">未配置</em></span>
+            <input name="headscale_api_key" id="headscaleApiKey" type="password" placeholder="留空表示不修改" autocomplete="new-password" />
+          </label>
+          <label class="field">
+            <span>Headscale 用户</span>
+            <input name="headscale_user" id="headscaleUser" type="text" placeholder="1" autocomplete="off" />
+          </label>
+          <div class="row-actions">
+            <button class="ghost-btn small" type="button" id="clearApiKey">清除 API Key</button>
+            <button class="ghost-btn small" type="button" id="testNodes">测试节点列表</button>
+          </div>
+          <div class="nodes" id="nodesList" hidden></div>
+        </article>
+
+        <article class="glass settings-card">
+          <header>
+            <h2>中继与对外地址</h2>
+            <span class="muted">DERP / Public URL</span>
+          </header>
+          <label class="field">
+            <span>DERP 地址</span>
+            <input name="derp_url" id="derpUrl" type="text" placeholder="https://derp.example.com" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>服务器公网地址</span>
+            <input name="public_url" id="publicUrl" type="url" placeholder="https://rvnc.example.com" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>被控端监听端口</span>
+            <input name="agent_port" id="agentPort" type="number" min="1" max="65535" placeholder="21416" />
+          </label>
+          <label class="field">
+            <span>免密令牌有效期（天）</span>
+            <input name="token_ttl_days" id="tokenTtl" type="number" min="1" max="3650" placeholder="30" />
+          </label>
+          <p class="hint">修改设置后立即生效；正在运行的控制会话不受影响。</p>
+        </article>
+
+        <article class="glass settings-card about-card">
+          <header>
+            <h2>关于</h2>
+            <span class="muted">RustVNC</span>
+          </header>
+          <dl class="about-list">
+            <div><dt>配对后端</dt><dd id="aboutVersion">–</dd></div>
+            <div><dt>协议版本</dt><dd id="aboutProtocol">–</dd></div>
+            <div><dt>Headscale</dt><dd id="aboutHeadscale">–</dd></div>
+            <div><dt>当前管理员</dt><dd>已通过令牌认证</dd></div>
+          </dl>
+          <p class="hint">退出登录会清除此浏览器会话中的管理员令牌。</p>
+          <button class="danger-btn" type="button" id="logoutBtn">退出登录</button>
+        </article>
+
+        <div class="settings-actions">
+          <button class="primary-btn" type="submit" id="saveSettings">保存设置</button>
+          <button class="ghost-btn" type="button" id="reloadSettings">放弃修改</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="overlay" id="loginOverlay">
+    <form class="glass login-card" id="loginForm" autocomplete="off">
+      <span class="login-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="10" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M8 10V7.5a4 4 0 1 1 8 0V10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </span>
+      <h1>管理员登录</h1>
+      <p>输入服务器启动时生成的 <code>RV_ADMIN_TOKEN</code>。令牌只保存在当前浏览器会话。</p>
+      <label class="field">
+        <span>管理员令牌</span>
+        <input id="adminTokenInput" type="password" placeholder="admin_…" autocomplete="current-password" required />
+      </label>
+      <button class="primary-btn" type="submit" id="loginBtn">进入控制台</button>
+      <p class="login-error" id="loginError" hidden></p>
+    </form>
+  </div>
+
+  <script src="/admin/app.js" defer></script>
+</body>
+</html>

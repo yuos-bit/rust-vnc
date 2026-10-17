@@ -1,0 +1,38 @@
+[package]
+name = "rv-pc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "RustVNC desktop controller and controlled endpoint (Tauri)"
+
+[lib]
+name = "rv_pc_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rustvnc"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = { workspace = true }
+getrandom = "0.3"
+rv-core = { workspace = true }
+rv-engine = { workspace = true }
+rv-net = { workspace = true }
+rv-proto = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tauri = { version = "2", features = [] }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security_Cryptography",
+    "Win32_System_Memory",
+] }

@@ -1,0 +1,12 @@
+[package]
+name = "rv-proto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pairing API DTOs and the end-to-end control wire protocol"
+
+[dependencies]
+bincode = { version = "2", features = ["serde"] }
+rv-core = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }

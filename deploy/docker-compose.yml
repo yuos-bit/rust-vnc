@@ -1,0 +1,139 @@
+# RustVNC 服务端编排
+#
+# 用法（在 deploy/ 目录）：
+#   cp .env.example .env
+#   $EDITOR .env
+#   $EDITOR headscale/config.yaml
+#   docker compose up -d headscale      # 先创建用户/API Key，见 README
+#   docker compose up -d --build
+#
+# 端口约定：
+#   公网: 80/tcp (Caddy ACME/跳转), 443/tcp+udp (Caddy TLS),
+#         8443/tcp (derper，可改为 443), 3478/udp (STUN)
+#   内部: 8080 (Headscale 与 rv-server，各自容器内), 9090 (Headscale metrics)
+#
+# 重要：
+#   * 8080/9090/50443 不映射到公网。
+#   * derper 不经过 Caddy/任何 HTTP 代理，由客户端直连。
+#   * derper 在容器内监听 443；单机部署时发布到宿主机 8443，避免与 Caddy 冲突。
+
+name: rustvnc
+
+services:
+  # -------------------------------------------------------------------------
+  # Headscale：控制面（节点注册、预授权密钥、节点状态）
+  # -------------------------------------------------------------------------
+  headscale:
+    image: headscale/headscale:0.26.1
+    # 升级时先在测试环境验证配置键与数据库迁移，再修改此固定版本
+    container_name: rvnc-headscale
+    restart: unless-stopped
+    command: serve
+    volumes:
+      - ./headscale/config.yaml:/etc/headscale/config.yaml:ro
+      - headscale-data:/var/lib/headscale
+    expose:
+      - "8080"
+      - "9090"
+    # 仅调试时在宿主机回环开放：
+    # ports:
+    #   - "127.0.0.1:8080:8080"
+    #   - "127.0.0.1:9090:9090"
+    networks:
+      - rvnc
+
+  # -------------------------------------------------------------------------
+  # 自建 DERP 中继
+  # -------------------------------------------------------------------------
+  derper:
+    build:
+      context: ./derp
+      dockerfile: Dockerfile
+      args:
+        DERP_VERSION: v1.80.0
+    image: rustvnc/derper:local
+    container_name: rvnc-derper
+    restart: unless-stopped
+    command:
+      - "-c=/var/lib/derper/derper.conf"
+      - "-a=:443"
+      - "-stun"
+      - "-hostname=${DERP_DOMAIN:?DERP_DOMAIN is required in deploy/.env}"
+      - "-certmode=${DERP_CERTMODE:-manual}"
+      - "-certdir=/certs"
+    ports:
+      # 单机部署：Caddy 占用 443，derper 使用 8443。
+      # derper 独占主机/独立 IP 时，把 DERP_HTTPS_PORT 改为 443。
+      - "${DERP_HTTPS_PORT:-8443}:443/tcp"
+      - "3478:3478/udp"
+    volumes:
+      - derper-data:/var/lib/derper
+      - ./derp/certs:/certs:ro
+    networks:
+      - rvnc
+
+  # -------------------------------------------------------------------------
+  # 配对后台 + Web 管理台（Rust）
+  # -------------------------------------------------------------------------
+  rv-server:
+    build:
+      context: ..
+      dockerfile: deploy/server.Dockerfile
+    image: rustvnc/rv-server:local
+    container_name: rvnc-server
+    restart: unless-stopped
+    environment:
+      RV_BIND: "0.0.0.0:8080"
+      RV_DB: /data/rvnc.db
+      RV_ADMIN_TOKEN: "${RV_ADMIN_TOKEN:?RV_ADMIN_TOKEN is required in deploy/.env}"
+      # 仅当 8080 只可经由 Caddy 访问时开启，否则 X-Forwarded-For 可被伪造
+      RV_TRUST_PROXY: "1"
+      HEADSCALE_URL: "http://headscale:8080"
+      HEADSCALE_API_KEY: "${HEADSCALE_API_KEY:-}"
+      HEADSCALE_USER: "${HEADSCALE_USER:-1}"
+      HEADSCALE_CONTROL_URL: "https://${HEADSCALE_DOMAIN}"
+      PUBLIC_URL: "https://${RVNC_DOMAIN}"
+      DERP_URL: "${DERP_URL:-}"
+      AGENT_PORT: "21416"
+      TOKEN_TTL_DAYS: "30"
+    volumes:
+      - ./data:/data
+    expose:
+      - "8080"
+    depends_on:
+      - headscale
+    networks:
+      - rvnc
+
+  # -------------------------------------------------------------------------
+  # Caddy：为 rv-server 与 Headscale 终止 TLS
+  # -------------------------------------------------------------------------
+  caddy:
+    image: caddy:2.8.4-alpine
+    container_name: rvnc-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+      - "443:443/udp"
+    environment:
+      RVNC_DOMAIN: "${RVNC_DOMAIN:?RVNC_DOMAIN is required in deploy/.env}"
+      HEADSCALE_DOMAIN: "${HEADSCALE_DOMAIN:?HEADSCALE_DOMAIN is required in deploy/.env}"
+      ACME_EMAIL: "${ACME_EMAIL:?ACME_EMAIL is required in deploy/.env}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy/data:/data
+      - ./data/caddy/config:/config
+    depends_on:
+      - rv-server
+      - headscale
+    networks:
+      - rvnc
+
+volumes:
+  headscale-data:
+  derper-data:
+
+networks:
+  rvnc:
+    driver: bridge
