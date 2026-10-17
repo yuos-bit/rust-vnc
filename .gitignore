@@ -22,3 +22,17 @@ android/**/build/
 *.tmp
 __pycache__/
 *.pyc
+
+# Android signing material (never commit)
+android/keystore/
+android/keystore.properties
+android-signing-fingerprint.txt
+*.jks
+*.p12
+*.keystore
+
+# Local release artifacts
+.secrets/
+dist/
+release-notes.md
+SHA256SUMS.txt

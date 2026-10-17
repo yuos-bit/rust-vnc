@@ -16,3 +16,10 @@ android/**/build
 apps/tsnet-sidecar/tsnet-state
 apps/tsnet-sidecar/rvnc-tsnet
 apps/tsnet-sidecar/rvnc-tsnet.exe
+
+.github
+.secrets
+android/keystore
+android/keystore.properties
+android-signing-fingerprint.txt
+dist

@@ -1,0 +1,237 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "忽略 10 次提交间隔，立即发布（版本号仍自动 +1）"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rustvnc-release
+  cancel-in-progress: false
+
+env:
+  RELEASE_EVERY: "10"
+
+jobs:
+  version:
+    name: Decide version
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.compute.outputs.run }}
+      version: ${{ steps.compute.outputs.version }}
+      tag: ${{ steps.compute.outputs.tag }}
+      version_code: ${{ steps.compute.outputs.version_code }}
+      reason: ${{ steps.compute.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute next version
+        id: compute
+        env:
+          FORCE_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+        run: bash .github/scripts/next-version.sh
+
+  build-android:
+    name: Build signed Android APK / AAB
+    needs: version
+    if: needs.version.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Restore Android signing keystore
+        uses: actions/cache@v4
+        with:
+          path: android/keystore/release.p12
+          key: rustvnc-android-keystore-v1
+
+      - name: Generate or validate self-signed signing certificate
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_TYPE: ${{ secrets.ANDROID_KEYSTORE_TYPE }}
+        run: bash .github/scripts/ensure-android-keystore.sh
+
+      - name: Build signed APK and AAB
+        working-directory: android
+        env:
+          RVNC_VERSION_NAME: ${{ needs.version.outputs.version }}
+          RVNC_VERSION_CODE: ${{ needs.version.outputs.version_code }}
+        run: |
+          gradle :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace \
+            -PrvncVersionName="$RVNC_VERSION_NAME" \
+            -PrvncVersionCode="$RVNC_VERSION_CODE"
+
+      - name: Verify signature and collect artifacts
+        working-directory: android
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          AAB="app/build/outputs/bundle/release/app-release.aab"
+          test -f "$APK"
+          test -f "$AAB"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | tee /tmp/apksigner.txt
+          cp "$APK" "../RustVNC-${VERSION}-android.apk"
+          cp "$AAB" "../RustVNC-${VERSION}-android.aab"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ needs.version.outputs.version }}
+          path: |
+            RustVNC-${{ needs.version.outputs.version }}-android.apk
+            RustVNC-${{ needs.version.outputs.version }}-android.aab
+            android-signing-fingerprint.txt
+          if-no-files-found: error
+
+  build-pc:
+    name: Build Windows desktop app
+    needs: version
+    if: needs.version.outputs.run == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Inject release version into Cargo and Tauri config
+        shell: pwsh
+        env:
+          RVNC_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          $version = $env:RVNC_VERSION
+          $cargo = Get-Content "Cargo.toml" -Raw
+          $cargo = $cargo -replace '(?m)^version = "[^"]+"\r?$', "version = `"$version`""
+          [IO.File]::WriteAllText((Join-Path $PWD "Cargo.toml"), $cargo)
+          $tauri = Get-Content "apps/pc/tauri.conf.json" -Raw
+          $tauri = $tauri -replace '"version":\s*"[^"]+"', "`"version`": `"$version`""
+          [IO.File]::WriteAllText((Join-Path $PWD "apps/pc/tauri.conf.json"), $tauri)
+          Write-Host "Injected version $version"
+          Select-String -Path "Cargo.toml" -Pattern '^version ='
+          Select-String -Path "apps/pc/tauri.conf.json" -Pattern '"version"'
+
+      - name: Build RustVNC desktop
+        run: cargo build --release -p rv-pc
+
+      - name: Package Windows build
+        shell: pwsh
+        env:
+          RVNC_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          $version = $env:RVNC_VERSION
+          $zip = "RustVNC-$version-windows-x64.zip"
+          Compress-Archive -Path "target/release/rustvnc.exe" -DestinationPath $zip -Force
+          Get-Item $zip | Select-Object Name, Length | Format-List
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-${{ needs.version.outputs.version }}
+          path: RustVNC-${{ needs.version.outputs.version }}-windows-x64.zip
+          if-no-files-found: error
+
+  release:
+    name: Create tag and GitHub Release
+    needs: [version, build-android, build-pc]
+    if: needs.version.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create checksums and release notes
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          TAG: ${{ needs.version.outputs.tag }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          cd dist
+          ls -lh
+          sha256sum RustVNC-* > SHA256SUMS.txt
+          FP="$(cat android-signing-fingerprint.txt 2>/dev/null || echo 'n/a')"
+          cat > ../release-notes.md <<'EOF'
+          ## RustVNC __TAG__
+
+          自动构建自提交 `__COMMIT__`，本次发布版本为 **__VERSION__**。
+
+          ### 下载
+
+          - **Android**：`RustVNC-__VERSION__-android.apk`（可直接安装，需允许未知来源）或 `RustVNC-__VERSION__-android.aab`（应用商店格式）
+          - **Windows x64**：`RustVNC-__VERSION__-windows-x64.zip`，解压后运行 `rustvnc.exe`（需要 WebView2，Windows 10/11 自带）
+          - **SHA-256**：`SHA256SUMS.txt`
+
+          ### 签名说明
+
+          Android APK 使用自签名证书签名（非 Google Play 签名）。证书 SHA-256 指纹：
+
+          ```
+          __FP__
+          ```
+
+          > 首次安装时 Android 可能提示“未知来源”或“应用未通过安全检测”，这是自签名应用的正常提示。
+          > 若签名指纹与上一版本不同，请先卸载旧版本再安装（通常只会在签名密钥被重新生成时发生）。
+
+          ### 版本规则
+
+          首次运行发布 `v0.1.0`；之后每累计 10 次提交自动发布一次，补丁版本 +1（`v0.1.1`、`v0.1.2`…）。
+          也可在 Actions 中手动运行 **Release** 并勾选 `force` 立即发布。
+          EOF
+          sed -i \
+            -e "s|__TAG__|${TAG}|g" \
+            -e "s|__VERSION__|${VERSION}|g" \
+            -e "s|__COMMIT__|${COMMIT}|g" \
+            -e "s|__FP__|${FP}|g" \
+            ../release-notes.md
+          cat ../release-notes.md
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: RustVNC ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          body_path: release-notes.md
+          files: dist/*
+          draft: false
+          prerelease: false
+          make_latest: true

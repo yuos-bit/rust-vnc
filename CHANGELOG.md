@@ -100,3 +100,30 @@
 - [x] 漏洞扫描：`cargo-audit 0.22.2` 重新扫描，0 个漏洞，3 条既有警告（bincode / proc-macro-error 停止维护、Linux-only glib 公告）。
 - [x] 功能验证：实际启动桌面端，点击太阳图标切换到明亮主题，界面即时更新并显示“已切换为明亮主题”；`settings.json` 中 `theme` 写为 `light`，重启后可恢复。
 - 结果：暗黑 / 明亮两套主题的控制端与被控端截图均已生成；会话区域保持黑底等比显示。
+
+---
+
+## [2026-10-18] GitHub Actions 自动构建、版本递增与自签名 Android 证书
+
+### 变更内容
+
+- 新增 `.github/workflows/release.yml`：push 到 `main` 时判断是否发布；首次发布 `v0.1.0`，之后距最新 tag 累计 10 次提交发布一次，补丁号 +1；也支持手动 `workflow_dispatch` + `force` 立即发布。
+- 新增 `.github/workflows/generate-android-keystore.yml`：手动生成/校验自签名 Android 签名证书并写入 Actions 私有缓存，Step Summary 展示 SHA-256 指纹，不输出或上传密钥本身。
+- 新增 `.github/scripts/next-version.sh`：基于 git tag 与提交数计算 `run`/`version`/`tag`/`version_code`；已本地验证无 tag、未达阈值、force 三种路径。
+- 新增 `.github/scripts/ensure-android-keystore.sh`：优先使用 `ANDROID_KEYSTORE_BASE64` Secret，其次复用缓存，最后生成 RSA-4096 / PKCS#12 自签名证书；写入 `keystore.properties` 与公开指纹。
+- Android Gradle：接入 `keystore.properties` 签名配置；支持 `-PrvncVersionName` / `-PrvncVersionCode` 注入版本；CI 需要时跳过 release lint 阻断。
+- PC 工作流：在 Windows runner 上注入 workspace/Tauri 版本，`cargo build --release -p rv-pc`，打包为 `RustVNC-<version>-windows-x64.zip`。
+- Release job：下载两端产物、生成 `SHA256SUMS.txt` 与发布说明、创建 `vX.Y.Z` tag 和 GitHub Release。
+- 文档：新增 `docs/RELEASING.md`；README 增加 Release 徽章与自动发布章节；`.gitignore` 增加密钥与发布产物规则。
+
+### 影响范围
+
+- `.github/`、`android/app/build.gradle.kts`、`README.md`、`docs/RELEASING.md`、`.gitignore`、`.dockerignore`、`CHANGELOG.md`。
+- 不修改应用协议与运行时逻辑；不影响已有本地构建（本地仍默认 `0.1.0`，CI 通过 Gradle 属性/Cargo 版本覆盖）。
+
+### 整体完成审计
+
+- [x] 代码审计：`actionlint 1.7.12` 检查通过（0 issue）；两个工作流 YAML 可解析；`bash -n` 通过；版本脚本三种路径实测输出正确。
+- [x] 漏洞扫描：未新增依赖；`cargo audit` 结果不变（0 漏洞，3 条既有警告）。
+- [x] 证书安全：密钥仅存于 Actions 私有缓存或 Secrets；不提交、不上传 artifact、不打印；Release 仅包含公开的 SHA-256 指纹。
+- [ ] Actions 实跑：由推送本条目触发，结果待运行完成后补充（首次应生成 `v0.1.0`）。

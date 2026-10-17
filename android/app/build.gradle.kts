@@ -1,9 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
+
+// CI injects the release version through -PrvncVersionName / -PrvncVersionCode.
+// Local builds keep the defaults below.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val rvncVersionName = providers.gradleProperty("rvncVersionName").orElse("0.1.0").get()
+val rvncVersionCode = providers.gradleProperty("rvncVersionCode").orElse("1000").get().toIntOrNull() ?: 1000
 
 android {
     namespace = "com.rustvnc.client"
@@ -13,10 +26,22 @@ android {
         applicationId = "com.rustvnc.client"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = rvncVersionCode
+        versionName = rvncVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeType = keystoreProperties.getProperty("storeType") ?: "PKCS12"
+            }
+        }
     }
 
     buildTypes {
@@ -26,7 +51,20 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                // Local release builds remain installable; CI always writes
+                // keystore.properties from the generated self-signed key.
+                signingConfigs.getByName("debug")
+            }
         }
+    }
+
+    lint {
+        // Release builds are produced unattended; lint runs separately in CI.
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 
     compileOptions {

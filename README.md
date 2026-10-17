@@ -1,10 +1,14 @@
 # RustVNC
 
+[![Release](https://github.com/yuos-bit/rust-vnc/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/yuos-bit/rust-vnc/actions/workflows/release.yml)
+
 **异地组网远程控制（手机控电脑）** — Tailscale 风格的加密虚拟组网 + 端到端远程桌面。
 
 RustVNC 把网络层直接内置到客户端：PC 端通过 Go `tsnet` sidecar 加入自建 Headscale/DERP 网络，Android 端通过官方 Tailscale 网络栈加入同一张网；配对后控制端直接连接被控端的 `100.x` 地址，服务器不中转业务数据。
 
 > 本仓库是完整可运行的 MVP。桌面端、配对后端、Web 管理台均使用 Rust 构建并通过本机编译与集成测试；Android 端提供完整源码脚手架，需要本机 Android SDK/JDK 与 Go/gomobile 才能打包（当前环境未安装）。
+>
+> GitHub Actions 会自动构建 Android 与 Windows 端并发布 Release：首次发布 `v0.1.0`，之后每累计 10 次提交发布一次（`v0.1.1`、`v0.1.2`…）。详见 [docs/RELEASING.md](docs/RELEASING.md)。
 
 ---
 
@@ -209,8 +213,22 @@ cargo audit
 
 ---
 
-## 9. 协议与文档
+## 9. 自动构建与发布
+
+- 工作流：[`.github/workflows/release.yml`](.github/workflows/release.yml)
+- 触发：push 到 `main`，或手动运行（可勾选 `force` 立即发布）。
+- 规则：无 tag 时首发 `v0.1.0`；之后距最新 tag 累计 **10 次提交**时自动发布，补丁号 +1。
+- 构建：Android 已签名 APK + AAB、Windows x64 桌面端 zip；两个平台都成功后才创建 tag 与 GitHub Release。
+- 签名：自动生成自签名 Android 证书并存入 Actions 私有缓存；证书 SHA-256 指纹写入 Release 说明。生产环境可通过 Secrets 固定密钥。
+- 版本注入：Android `versionName`/`versionCode`、Rust workspace 版本、Tauri 版本在 CI 中统一为同一次发布的版本号。
+
+完整说明（证书、Secrets、手动发布、故障排查）见 [docs/RELEASING.md](docs/RELEASING.md)。
+
+---
+
+## 10. 协议与文档
 
 - [docs/API.md](docs/API.md) — 配对/管理 API 与控制线协议
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Headscale + DERP + 反向代理部署
+- [docs/RELEASING.md](docs/RELEASING.md) — GitHub Actions 自动构建、版本与签名
 - [CHANGELOG.md](CHANGELOG.md) — 变更记录与审计结果
