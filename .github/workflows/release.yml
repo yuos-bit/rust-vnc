@@ -227,6 +227,7 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ needs.version.outputs.tag }}
           name: RustVNC ${{ needs.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
