@@ -112,6 +112,7 @@
 - 新增 `.github/scripts/next-version.sh`：基于 git tag 与提交数计算 `run`/`version`/`tag`/`version_code`；已本地验证无 tag、未达阈值、force 三种路径。
 - 新增 `.github/scripts/ensure-android-keystore.sh`：优先使用 `ANDROID_KEYSTORE_BASE64` Secret，其次复用缓存，最后生成 RSA-4096 / PKCS#12 自签名证书；写入 `keystore.properties` 与公开指纹。
 - Android Gradle：接入 `keystore.properties` 签名配置；支持 `-PrvncVersionName` / `-PrvncVersionCode` 注入版本；CI 需要时跳过 release lint 阻断。
+- CI 修正：改用 Runner 预装 Android SDK（移除不稳定的第三方 setup action）；Gradle 构建失败时上传 `/tmp/gradle-build.log` artifact；本地无 keystore 时使用 `findByName("debug")` 避免配置失败。
 - PC 工作流：在 Windows runner 上注入 workspace/Tauri 版本，`cargo build --release -p rv-pc`，打包为 `RustVNC-<version>-windows-x64.zip`。
 - Release job：下载两端产物、生成 `SHA256SUMS.txt` 与发布说明、创建 `vX.Y.Z` tag 和 GitHub Release。
 - 文档：新增 `docs/RELEASING.md`；README 增加 Release 徽章与自动发布章节；`.gitignore` 增加密钥与发布产物规则。
@@ -126,4 +127,8 @@
 - [x] 代码审计：`actionlint 1.7.12` 检查通过（0 issue）；两个工作流 YAML 可解析；`bash -n` 通过；版本脚本三种路径实测输出正确。
 - [x] 漏洞扫描：未新增依赖；`cargo audit` 结果不变（0 漏洞，3 条既有警告）。
 - [x] 证书安全：密钥仅存于 Actions 私有缓存或 Secrets；不提交、不上传 artifact、不打印；Release 仅包含公开的 SHA-256 指纹。
-- [ ] Actions 实跑：由推送本条目触发，结果待运行完成后补充（首次应生成 `v0.1.0`）。
+- [x] Actions 实跑：Release run [39051826836](https://github.com/yuos-bit/rust-vnc/actions/runs/39051826836) 成功（2026-10-18），自动创建 `v0.1.0` tag 与 GitHub Release。
+  - Android `assembleRelease` + `bundleRelease` 成功，APK/AAB 已签名；证书 SHA-256 指纹 `50:4C:A0:BB:19:E3:BE:97:E8:5B:28:8C:0C:BC:B8:F5:10:DC:50:B8:BD:7C:AB:D8:6E:EC:FE:A0:B0:13:6F:68`。
+  - Windows x64 `rustvnc.exe` 构建、打包与 artifact 上传成功。
+  - 发布资产：`RustVNC-0.1.0-android.apk`（8.1 MB）、`RustVNC-0.1.0-android.aab`（7.8 MB）、`RustVNC-0.1.0-windows-x64.zip`（5.0 MB）、`SHA256SUMS.txt`、`android-signing-fingerprint.txt`；三个产物的 SHA-256 均校验通过。
+  - 首次尝试因第三方 `android-actions/setup-android@v3` 失败；已改用 Runner 预装 Android SDK，并增加 Gradle 失败日志 artifact，修正后运行成功。失败尝试未创建 tag。
