@@ -56,10 +56,36 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
+      - name: Locate preinstalled Android SDK
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [ -z "$SDK_ROOT" ] || [ ! -d "$SDK_ROOT" ]; then
+            for d in /usr/local/lib/android/sdk "$HOME/Android/Sdk" /opt/android-sdk; do
+              if [ -d "$d" ]; then SDK_ROOT="$d"; break; fi
+            done
+          fi
+          if [ -z "$SDK_ROOT" ] || [ ! -d "$SDK_ROOT" ]; then
+            echo "Android SDK not found on this runner" >&2
+            exit 1
+          fi
+          CMDLINE=""
+          for c in "$SDK_ROOT/cmdline-tools/latest/bin" "$SDK_ROOT/cmdline-tools/bin" "$SDK_ROOT/tools/bin"; do
+            if [ -x "$c/sdkmanager" ]; then CMDLINE="$c"; break; fi
+          done
+          if [ -z "$CMDLINE" ]; then
+            echo "sdkmanager not found under $SDK_ROOT" >&2
+            exit 1
+          fi
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$CMDLINE" >> "$GITHUB_PATH"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          echo "Using Android SDK at $SDK_ROOT (cmdline-tools: $CMDLINE)"
 
       - name: Install Android SDK packages
         run: |
+          sdkmanager --version
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
