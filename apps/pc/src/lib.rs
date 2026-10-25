@@ -1,5 +1,6 @@
 mod commands;
 mod config;
+pub mod embedded_env;
 mod model;
 mod secure_store;
 
@@ -72,6 +73,7 @@ pub fn run() {
             commands::bootstrap,
             commands::save_settings,
             commands::set_theme,
+            commands::embedded_env_entries,
             commands::start_agent,
             commands::stop_agent,
             commands::forget_agent,

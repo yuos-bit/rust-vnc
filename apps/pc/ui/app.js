@@ -20,6 +20,8 @@
     session: null,
     connecting: false,
     passwordVisible: false,
+    embeddedEntries: [],
+    embeddedReveal: false,
     lastFrameUrl: null,
     lastMainView: 'controller',
   };
@@ -211,6 +213,43 @@
     renderDevices();
     renderAgent();
     fillSettings();
+    renderEmbeddedConfig();
+  }
+
+  // --------------------------------------------------------- embedded config
+  function isSensitiveKey(key) {
+    return /key|token|secret|password|密钥|密码/i.test(key);
+  }
+
+  function renderEmbeddedConfig() {
+    const list = $('#embeddedConfigList');
+    if (!list) return;
+    if (!state.embeddedEntries.length) {
+      list.innerHTML = '<p class="hint">构建时未找到 .env，或文件为空。</p>';
+      return;
+    }
+    list.innerHTML = state.embeddedEntries.map(({ key, value }) => {
+      const masked = isSensitiveKey(key) && !state.embeddedReveal;
+      return `<div class="embedded-row">
+        <span class="embedded-key">${escapeHtml(key)}</span>
+        <span class="embedded-value">${escapeHtml(masked ? '••••••••' : value)}</span>
+      </div>`;
+    }).join('');
+
+    const button = $('#toggleEmbeddedSecrets');
+    if (button) {
+      button.textContent = state.embeddedReveal ? '隐藏敏感值' : '显示敏感值';
+    }
+  }
+
+  async function loadEmbeddedConfig() {
+    try {
+      state.embeddedEntries = await invoke('embedded_env_entries');
+    } catch (error) {
+      state.embeddedEntries = [];
+      toast(`读取内置配置失败：${errText(error)}`, true);
+    }
+    renderEmbeddedConfig();
   }
 
   // ------------------------------------------------------------------ pairing
@@ -854,6 +893,10 @@
     $('#reloadSettingsBtn').addEventListener('click', fillSettings);
     $('#settingsForm').addEventListener('submit', saveSettings);
     $('#enrollNetwork').addEventListener('click', enrollNetwork);
+    $('#toggleEmbeddedSecrets').addEventListener('click', () => {
+      state.embeddedReveal = !state.embeddedReveal;
+      renderEmbeddedConfig();
+    });
 
     $('#winMin').addEventListener('click', () => invoke('window_minimize').catch(() => {}));
     $('#winMax').addEventListener('click', () => invoke('window_toggle_maximize').catch(() => {}));
@@ -964,6 +1007,7 @@
       toast(`初始化失败：${errText(error)}`, true);
     }
     renderAll();
+    await loadEmbeddedConfig();
     setTimeout(() => showView('controller'), 0);
   }
 

@@ -32,7 +32,7 @@ RUN cargo build --release --locked -p rv-server
 FROM debian:bookworm-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 rvnc \
     && useradd --uid 10001 --gid rvnc --home-dir /data --no-create-home --shell /usr/sbin/nologin rvnc \

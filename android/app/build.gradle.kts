@@ -18,9 +18,32 @@ val keystoreProperties = Properties().apply {
 val rvncVersionName = providers.gradleProperty("rvncVersionName").orElse("0.1.0").get()
 val rvncVersionCode = providers.gradleProperty("rvncVersionCode").orElse("1000").get().toIntOrNull() ?: 1000
 
+// Embed the repository-root `.env` as an APK asset. CI checkouts have no
+// `.env` (it is gitignored), so the generated asset is empty there.
+val embeddedEnvDir = layout.buildDirectory.dir("generated/embeddedEnv/assets")
+val embedEnvTask = tasks.register("embedEnv") {
+    val envFile = rootProject.file("../.env")
+    inputs.file(envFile).withPropertyName("rustvncEnvFile").optional()
+    outputs.dir(embeddedEnvDir)
+    doLast {
+        val outDir = embeddedEnvDir.get().asFile
+        outDir.mkdirs()
+        outDir.resolve("embedded_env.txt").writeText(
+            if (envFile.exists()) envFile.readText() else "",
+        )
+    }
+}
+
 android {
     namespace = "com.rustvnc.client"
     compileSdk = 35
+    buildToolsVersion = "35.0.0"
+
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(embeddedEnvDir.get().asFile)
+        }
+    }
 
     defaultConfig {
         applicationId = "com.rustvnc.client"
@@ -91,6 +114,16 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+afterEvaluate {
+    tasks.matching {
+        it.name == "preBuild" ||
+            it.name == "mergeReleaseAssets" ||
+            it.name == "mergeDebugAssets"
+    }.configureEach {
+        dependsOn(embedEnvTask)
     }
 }
 

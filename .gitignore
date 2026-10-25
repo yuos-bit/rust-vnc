@@ -4,6 +4,7 @@ apps/pc/gen/
 node_modules/
 *.log
 .env
+deploy/pairing/pairing.env
 deploy/data/
 /data/
 *.db

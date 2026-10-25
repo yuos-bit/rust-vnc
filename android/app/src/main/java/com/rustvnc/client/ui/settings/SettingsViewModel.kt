@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.os.Build
 import com.rustvnc.client.data.ApiClient
+import com.rustvnc.client.data.EmbeddedEnv
 import com.rustvnc.client.data.EnrollControllerRequestDto
 import com.rustvnc.client.data.ImageQuality
 import com.rustvnc.client.data.SecureStore
@@ -45,8 +46,12 @@ class SettingsViewModel(
             serverUrl = settings.serverUrl.value,
             controllerName = settings.controllerName.value,
             controllerId = secure.controllerId,
-            controlUrl = settings.controlUrl.value,
-            preAuthKey = secure.preAuthKey().orEmpty(),
+            controlUrl = settings.controlUrl.value.ifBlank {
+                EmbeddedEnv.value("headscale服务器地址", "HEADSCALE_URL", "TS_CONTROLURL") ?: ""
+            },
+            preAuthKey = secure.preAuthKey().orEmpty().ifBlank {
+                EmbeddedEnv.value("headscale-key", "HEADSCALE_KEY", "TS_AUTHKEY") ?: ""
+            },
             quality = settings.quality.value,
             fps = settings.fps.value,
             tailscale = tailscale.state.value,

@@ -2,6 +2,7 @@ package com.rustvnc.client
 
 import android.content.Context
 import com.rustvnc.client.data.ApiClient
+import com.rustvnc.client.data.EmbeddedEnv
 import com.rustvnc.client.data.PairingRepository
 import com.rustvnc.client.data.SecureStore
 import com.rustvnc.client.data.SettingsStore
@@ -16,6 +17,10 @@ import com.rustvnc.tailscale.NoopTailscaleController
  */
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
+
+    init {
+        EmbeddedEnv.init(appContext)
+    }
 
     val settings = SettingsStore(appContext)
     val secure = SecureStore(appContext)

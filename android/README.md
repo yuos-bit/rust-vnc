@@ -305,6 +305,35 @@ headscale preauthkeys create --user <user> --reusable=false
 的实现里把空密钥解释为“走登录流程”，并相应放宽设置页的校验；当前脚手架按
 pre-auth key 路径实现。
 
+### 6.5 内置客户端配置（env-back 模板）
+
+仓库根目录的 `env-back` 是**客户端配置示例模板**，构建脚本不会自动读取它。
+需要把 Headscale/DERP/密钥内置到 APK 时：
+
+1. 复制模板并填写真实值：
+
+   ```bash
+   cp env-back .env
+   # 编辑 .env
+   ```
+
+2. **重新构建 APK**：
+
+   ```bash
+   gradle -p android :app:assembleRelease :app:bundleRelease
+   ```
+
+3. 构建时 `.env` 会写入 APK 的 `assets/embedded_env.txt`，并显示在
+   **设置 → 内置配置（.env）**。
+
+注意：
+
+- 修改 `.env` 后必须重新编译；只重启应用不会更新已内置的内容。
+- `.env` 是本机真实配置，已被 `.gitignore` 忽略，不要提交；`env-back` 是仓库中的
+  占位符模板。
+- CI 构建没有 `.env`，因此不会内置密钥。
+- 配置会编译进 APK，任何人都能提取；不要公开分发包含生产密钥的构建。
+
 ## 7. 安全说明
 
 - 配对令牌与控制器 pre-auth key 保存在 **EncryptedSharedPreferences**

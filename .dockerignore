@@ -11,6 +11,7 @@ deploy/data
 *.db-wal
 *.log
 .env
+deploy/pairing/pairing.env
 android/.gradle
 android/**/build
 apps/tsnet-sidecar/tsnet-state

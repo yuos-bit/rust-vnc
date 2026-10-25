@@ -1,0 +1,7 @@
+# RustVNC 客户端配置模板（env-back，示例文件）。
+# 使用方法：复制为 .env，填写真实的 Headscale/DERP/密钥，然后重新编译
+# Windows/Android 客户端；构建脚本只读取 .env，不会读取 env-back。
+# 修改 .env 后必须重新编译才会生效；.env 已被 .gitignore 忽略，不要提交。
+headscale服务器地址：https://[域名]
+derp服务器中继地址：https://[域名]
+headscale-key=[密钥]

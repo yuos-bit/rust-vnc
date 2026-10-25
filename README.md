@@ -88,6 +88,20 @@ scripts/        图标生成、冒烟测试
 
 ### 4.1 启动配对后台
 
+#### Docker Compose 一键启动（推荐，需要 Docker + Compose v2）
+
+```powershell
+# Windows
+.\scripts\start-pairing-backend.ps1
+
+# Linux / macOS
+./scripts/start-pairing-backend.sh
+```
+
+脚本会创建 `deploy/pairing/pairing.env`、生成随机管理员令牌、构建并启动 `rv-server`，等待健康检查后打印管理台地址和令牌。默认只监听 `127.0.0.1:8080`；详细配置（端口、Headscale、数据卷、备份）见 [deploy/pairing/README.md](deploy/pairing/README.md)。
+
+#### 本机无 Docker 时
+
 ```powershell
 $env:RV_ADMIN_TOKEN = "dev-admin-token-please-change"
 $env:RV_DB = "data/rvnc.db"
@@ -124,6 +138,43 @@ sidecar 会把 tailnet 的 `:21416` 转发到本机 Rust 被控端，并在 `127
 ### 4.4 Android
 
 见 [android/README.md](android/README.md)。需要 Android Studio、JDK 17、SDK 35，以及用 Go/gomobile 构建的 Tailscale AAR。
+
+### 4.5 本地构建时内置 `.env`（可选）
+
+仓库根目录的 `env-back` 是**客户端配置模板/示范文件**，构建脚本不会自动读取它。需要把配置内置到客户端时，请手动复制并填写：
+
+```powershell
+# Windows PowerShell
+Copy-Item env-back .env
+# 编辑 .env：填写真实的 Headscale 地址、DERP 地址、headscale-key
+
+# Linux / macOS
+cp env-back .env
+```
+
+然后**重新编译**目标端；构建时才会读取 `.env`，修改配置后必须重新编译才会生效，已经生成的 exe/APK 不会自动更新：
+
+```powershell
+# Windows release
+cargo build --release -p rv-pc
+# 产物：target/release/rustvnc.exe
+# 应用内：设置 → 内置配置（.env）
+
+# Android（需要 JDK 17 / Android SDK 35 / Gradle 8.10.2）
+bash .github/scripts/ensure-android-keystore.sh   # 生成本地自签名 keystore
+gradle -p android :app:assembleRelease :app:bundleRelease
+# 产物：android/app/build/outputs/apk/release/app-release.apk
+```
+
+说明：
+
+- `env-back` 是仓库中的示例模板，使用占位符；`.env` 是本机真实配置，已被 `.gitignore` 忽略，**不要提交**。
+- 构建脚本只读取 `.env`，**不会读取 `env-back`**；不复制/不创建 `.env` 时，产物中不会包含这些配置。
+- 修改 `.env` 后必须重新编译；只重启应用不会更新已内置的内容。
+- PC 与 Android 的设置页都会显示“内置配置（.env）”，敏感值默认隐藏。
+- CI 检出没有 `.env`（被 `.gitignore` 忽略），自动发布产物不包含 Headscale/DERP/key；需要内置配置时在本地编译。
+- Windows 中文路径下，`android/gradle.properties` 已设置 `android.overridePathCheck=true` 以通过 AGP 路径检查。
+- **安全**：配置会编译进 exe/APK，任何人都能提取；请勿公开分发包含生产密钥的构建。
 
 ---
 

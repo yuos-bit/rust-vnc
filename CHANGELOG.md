@@ -132,3 +132,89 @@
   - Windows x64 `rustvnc.exe` 构建、打包与 artifact 上传成功。
   - 发布资产：`RustVNC-0.1.0-android.apk`（8.1 MB）、`RustVNC-0.1.0-android.aab`（7.8 MB）、`RustVNC-0.1.0-windows-x64.zip`（5.0 MB）、`SHA256SUMS.txt`、`android-signing-fingerprint.txt`；三个产物的 SHA-256 均校验通过。
   - 首次尝试因第三方 `android-actions/setup-android@v3` 失败；已改用 Runner 预装 Android SDK，并增加 Gradle 失败日志 artifact，修正后运行成功。失败尝试未创建 tag。
+
+---
+
+## [2026-10-25] 本地构建内置 .env 配置；修复 Android 构建与 Windows 注册连接
+
+### 变更内容
+
+- **PC 端内置 `.env`**：`apps/pc/build.rs` 在构建时读取仓库根目录 `.env`，通过 `OUT_DIR/embedded_env.rs` 编译进 exe；新增 `embedded_env` 解析模块（支持 `=`、`:`、全角 `：`）和 `embedded_env_entries` Tauri 命令；设置页新增“内置配置（.env）”卡片，敏感值默认隐藏。
+- **Android 端内置 `.env`**：Gradle 新增 `embedEnv` 任务，将 `.env` 写入 `assets/embedded_env.txt`，并接入 `preBuild`/`merge*Assets` 依赖；新增 `EmbeddedEnv` 解析器；设置页新增“内置配置（.env）”卡片；控制面地址与 `headscale-key` 在设置为空时预填。
+- **本地 Android 构建修复**：AGP 拒绝中文路径，加入 `android.overridePathCheck=true`；两个模块指定 `buildToolsVersion = "35.0.0"`，避免 AGP 自动下载缺失的 Build Tools 34.0.0（本地无该版本时构建长时间等待后失败）。
+- **Windows 注册报错定位与修复**：报错根因是配对后台 `rv-server` 未运行（应用默认连接 `http://127.0.0.1:8080`），不是客户端缺陷。启动本地 `rv-server` 后，Windows 端成功注册设备码 `YU8768` 并显示在线。`.env` 中不含配对后台地址，只有 Headscale/DERP/key。
+- 新增本地构建产物（位于 `dist/local-2026-10-25/`，已被 `.gitignore` 忽略）：
+  - `RustVNC-0.1.0-windows-x64-embedded-env.zip`
+  - `RustVNC-0.1.0-android-embedded-env.apk`
+  - `RustVNC-0.1.0-android-embedded-env.aab`
+- 文档：README 增加“本地构建时内置 `.env`”章节；dist 目录附构建说明、校验和与网络注意事项。
+
+### 影响范围
+
+- `apps/pc/build.rs`、`apps/pc/src/embedded_env.rs`（新增）、`apps/pc/src/lib.rs`、`apps/pc/src/commands.rs`、`apps/pc/ui/{index.html,styles.css,app.js}`
+- `android/app/build.gradle.kts`、`android/tailscale-sdk/build.gradle.kts`、`android/gradle.properties`
+- `android/app/src/main/java/com/rustvnc/client/data/EmbeddedEnv.kt`（新增）、`AppContainer.kt`、`SettingsViewModel.kt`、`SettingsScreen.kt`
+- `README.md`、`CHANGELOG.md`；本地 `dist/` 与 `data/` 不进入 Git
+- 未修改控制协议和配对 API
+
+### 整体完成审计
+
+- [x] **PC 审计与构建**：`cargo fmt --all --check`、`cargo check -p rv-pc --all-targets`、`cargo clippy -p rv-pc --all-targets`、`cargo test -p rv-pc` 均通过；`cargo build --release -p rv-pc` 成功。exe 内已确认包含 `.env` 的 Headscale 地址、DERP 地址和 `headscale-key`。
+- [x] **Windows 注册验证**：启动本地 `rv-server`（`data/rvnc.db`）后，Windows 客户端注册成功，设备码 `YU8768`，在线状态正常；界面截图 `dist/local-2026-10-25/app-agent-after.png`。
+- [x] **Android 构建**：JDK 17.0.20.1 + Android SDK 35 + Build Tools 35.0.0 + Gradle 8.10.2 本地构建成功（`BUILD SUCCESSFUL in 5m 5s`）；APK 7.8 MB、AAB 7.5 MB。
+- [x] **Android 产物验证**：APK `assets/embedded_env.txt` 与 AAB `base/assets/embedded_env.txt` 均包含全部三项 `.env` 配置；`apksigner verify` 通过；`versionName=0.1.0`、`versionCode=1000`、包名 `com.rustvnc.client`。
+- [x] **签名**：本地自签名证书 SHA-256 `C0:3C:87:E5:A6:D1:FA:3F:64:A5:41:CA:F3:15:DF:A4:EC:64:61:91:FD:FB:5F:DD:CB:B1:59:05:42:48:FD:3A`；与 CI `v0.1.0` 签名不同，覆盖安装前需先卸载旧版。
+- [x] **完整性**：`SHA256SUMS.txt` 中的 Windows zip、APK、AAB 三项校验全部通过。
+- [x] **安全**：`.env` 中的 `headscale-key` 按需求编译进 exe/APK，任何持有产物的人均可提取；`dist/` 与 `data/` 均被 `.gitignore` 忽略，不应公开分发。
+- [x] **外部问题记录**：`https://wg.yuos.top/`（Headscale）证书已过期（`SEC_E_CERT_EXPIRED`），远程组网前需续期；本地配对后台未配置 Headscale API Key，因此设备仅完成配对注册、尚未加入 tailnet。DERP `https://derp.yuos.top/` 可正常访问。
+- [x] **平台限制**：Android 仍使用 `NoopTailscaleController`，内置 Headscale 地址/密钥已预填但不会实际建立 VPN；Windows 端 tsnet sidecar 未随 exe 打包，需单独运行。
+
+---
+
+## [2026-10-25] 配对后台 Docker Compose 一键启动
+
+### 变更内容
+
+- 新增 `deploy/pairing/docker-compose.yml`：只启动配对后台 `rv-server`，使用命名卷持久化 SQLite，配置健康检查，默认仅绑定 `127.0.0.1:8080`。
+- 新增 `deploy/pairing/pairing.env.example`：管理员令牌、宿主机绑定/端口、可选 Headscale/DERP 配置、令牌有效期等。
+- 新增 `deploy/pairing/README.md`：一键启动、手动启动、配置表、数据备份/清理、端口冲突、TLS 与安全说明。
+- 新增 `scripts/start-pairing-backend.ps1` 与 `scripts/start-pairing-backend.sh`：检查 Docker/Compose、首次生成随机管理员令牌、构建并启动、等待 `/healthz`、打印管理台地址和令牌。
+- 适配 `deploy/server.Dockerfile`：运行镜像安装 `curl` 供 Compose healthcheck 使用。
+- `.gitignore`/`.dockerignore` 忽略 `deploy/pairing/pairing.env`；`.gitattributes` 强制 env 文件使用 LF，避免 Windows CRLF 影响 Docker env 解析。
+- README 4.1 增加 Docker 一键启动说明；`deploy/README.md` 增加最小 Compose 入口链接。
+
+### 影响范围
+
+- 仅部署与脚本：`deploy/pairing/`、`scripts/start-pairing-backend.*`、`deploy/server.Dockerfile`、相关 ignore/gitattributes、README。
+- 不修改 `rv-server` API 或客户端协议；客户端默认配对地址仍为 `http://127.0.0.1:8080`。
+
+### 整体完成审计
+
+- [x] **静态校验**：Compose YAML 可解析；shell 脚本 `bash -n` 通过；PowerShell 脚本添加 UTF-8 BOM 后解析通过。
+- [ ] **Docker 实跑**：当前开发机未安装 Docker，未执行 `docker compose up`；首次在有 Docker 的机器上运行会构建 `rust:1.99-bookworm` 并编译 `rv-server`。
+- [x] **安全**：`pairing.env` 不进入 Git/Docker 构建上下文；首次自动生成随机管理员令牌；默认只监听回环地址；Headscale 配置可选。
+- [x] **兼容性**：Compose 默认端口与 Windows 客户端默认 `http://127.0.0.1:8080` 一致；若本机已有独立 `rv-server` 占用 8080，需先停止或修改 `PAIRING_PORT`。
+- [x] **数据迁移提示**：Docker Compose 使用新的命名卷数据库；切换到 Compose 后旧客户端身份不属于新库，需在 Windows 被控端点击“重新注册”或重新配对。
+
+---
+
+## [2026-10-25] 文档：env-back 作为客户端配置模板
+
+### 变更内容
+
+- README 4.5 明确说明：`env-back` 是客户端配置示例模板，构建脚本不会自动读取；用户需要复制为 `.env`、填写真实值，然后重新编译 Windows/Android 客户端才会生效。
+- 补充说明：修改 `.env` 后必须重新编译，已生成的 exe/APK 不会更新；`.env` 已被 `.gitignore` 忽略，不能提交；CI 没有 `.env`，自动发布产物不包含密钥。
+- `android/README.md` 新增 6.5 节，说明 Android APK 的内置配置来自构建时的 `.env`（写入 `assets/embedded_env.txt`）。
+- `deploy/pairing/README.md` 增加说明：服务端 `pairing.env` 与客户端 `env-back`/`.env` 是两套不同配置，不能混用。
+- `env-back` 增加模板头注释，说明复制、配置、重新编译的流程。
+
+### 影响范围
+
+- 仅文档与模板注释：`README.md`、`android/README.md`、`deploy/pairing/README.md`、`env-back`。
+- 不修改构建脚本、应用代码或产物行为。
+
+### 整体完成审计
+
+- [x] 文档审计：检查 README / Android README / pairing README 的相对链接、命令与路径；确认 `env-back`、`.env`、`pairing.env` 的关系描述一致。
+- [x] 构建逻辑未变：Windows `build.rs` 与 Android `embedEnv` 仍只读取根目录 `.env`；`env-back` 不会被自动加载。
+- [x] 安全说明：明确 `.env` 被 `.gitignore` 忽略、配置会编译进产物、不要公开分发含密钥的构建。

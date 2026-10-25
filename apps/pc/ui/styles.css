@@ -546,6 +546,24 @@ button { font-family: inherit; }
   justify-content: flex-end;
   gap: 10px;
 }
+.embedded-card { grid-column: 1 / -1; }
+.embedded-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+.embedded-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 260px) 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.embedded-key { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.embedded-value { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+html[data-theme="light"] .embedded-row {
+  background: rgba(255, 255, 255, 0.42);
+  border-color: rgba(255, 255, 255, 0.7);
+}
 .inline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 6px; }
 .modal-card p { white-space: pre-line; }
 .about-list { margin: 0; display: flex; flex-direction: column; gap: 10px; }

@@ -266,6 +266,15 @@
             </dl>
           </article>
 
+          <article class="glass card settings-card embedded-card">
+            <header class="card-head">
+              <h2>内置配置（.env）</h2>
+              <button class="ghost-btn small" id="toggleEmbeddedSecrets" type="button">显示敏感值</button>
+            </header>
+            <div id="embeddedConfigList" class="embedded-list"></div>
+            <p class="hint">构建时从仓库根目录的 <code>.env</code> 读取并编译进本程序。任何人拿到安装包都可以提取这些值，请勿分发包含生产密钥的构建。</p>
+          </article>
+
           <div class="settings-actions">
             <button class="primary-btn" type="submit" id="saveSettingsBtn">保存设置</button>
             <button class="ghost-btn" type="button" id="reloadSettingsBtn">放弃修改</button>

@@ -47,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rustvnc.client.BuildConfig
 import com.rustvnc.client.data.ApiClient
+import com.rustvnc.client.data.EmbeddedEnv
 import com.rustvnc.client.data.ImageQuality
 import com.rustvnc.client.data.SecureStore
 import com.rustvnc.client.data.SettingsStore
@@ -149,6 +150,10 @@ fun SettingsRoute(
 
                     StaggeredEntrance(index = 3) {
                         AboutCard(onClearRequest = { confirmClear = true })
+                    }
+
+                    StaggeredEntrance(index = 4) {
+                        EmbeddedConfigCard()
                     }
 
                     Spacer(Modifier.height(18.dp))
@@ -470,6 +475,71 @@ private fun AboutCard(onClearRequest: () -> Unit) {
                 onClick = onClearRequest,
                 modifier = Modifier.fillMaxWidth(),
                 danger = true,
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmbeddedConfigCard() {
+    val entries = EmbeddedEnv.entries()
+    var reveal by remember { mutableStateOf(false) }
+
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        padding = PaddingValues(18.dp),
+    ) {
+        Column {
+            SectionTitle("内置配置（.env）")
+            Spacer(Modifier.height(10.dp))
+
+            if (entries.isEmpty()) {
+                Text(
+                    text = "构建时未找到 .env，或文件为空。",
+                    color = MutedText,
+                    fontSize = 12.sp,
+                )
+            } else {
+                entries.forEach { (key, value) ->
+                    val sensitive = listOf("key", "token", "secret", "password", "密钥", "密码")
+                        .any { key.contains(it, ignoreCase = true) }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Text(
+                            text = key,
+                            color = MutedText,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(0.42f),
+                        )
+                        Text(
+                            text = if (sensitive && !reveal) "••••••••" else value,
+                            color = GlassText,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.weight(0.58f),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = { reveal = !reveal }) {
+                    Text(
+                        text = if (reveal) "隐藏敏感值" else "显示敏感值",
+                        color = AccentBlue,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+
+            Text(
+                text = "构建时从仓库根目录 .env 读取并打包；持有 APK 的人可以提取这些值，请勿分发包含生产密钥的构建。",
+                color = FaintText,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
     }

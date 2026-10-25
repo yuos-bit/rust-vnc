@@ -1,0 +1,40 @@
+name: rustvnc-pairing
+
+# 仅启动配对后台 rv-server 的最小 Compose。
+# 完整生产栈（Headscale + DERP + Caddy + 配对后台）见 deploy/docker-compose.yml。
+#
+# 启动：
+#   docker compose --env-file deploy/pairing/pairing.env \
+#     -f deploy/pairing/docker-compose.yml up -d --build
+#
+# 首次使用请复制 pairing.env.example 为 pairing.env 并设置 RV_ADMIN_TOKEN；
+# 或直接运行 scripts/start-pairing-backend.ps1 / .sh（自动生成令牌）。
+
+services:
+  rv-server:
+    build:
+      context: ../..
+      dockerfile: deploy/server.Dockerfile
+    image: rustvnc/rv-server:local
+    container_name: rvnc-pairing
+    restart: unless-stopped
+    env_file:
+      - ./pairing.env
+    environment:
+      RV_BIND: 0.0.0.0:8080
+      RV_DB: /data/rvnc.db
+    ports:
+      # 默认只绑定本机回环；对外提供服务时把 PAIRING_BIND 改为 0.0.0.0，
+      # 并在前面加 Caddy/Nginx 做 TLS，不要直接暴露明文管理台。
+      - "${PAIRING_BIND:-127.0.0.1}:${PAIRING_PORT:-8080}:8080"
+    volumes:
+      - rvnc-pairing-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+volumes:
+  rvnc-pairing-data:

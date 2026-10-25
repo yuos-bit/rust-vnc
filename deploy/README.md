@@ -2,6 +2,9 @@
 
 本目录包含 RustVNC 的服务端编排：Headscale 控制面、自建 DERP（derper）、配对后台 `rv-server` 与 Caddy TLS。
 
+> 只需要配对后台？使用最小一键 Compose：[deploy/pairing/README.md](pairing/README.md)
+> 或运行 `scripts/start-pairing-backend.ps1` / `scripts/start-pairing-backend.sh`。
+
 ## 快速开始
 
 ```bash

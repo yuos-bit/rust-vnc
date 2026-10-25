@@ -8,5 +8,7 @@
 
 *.sh text eol=lf
 *.ps1 text eol=crlf
+*.env text eol=lf
+*.env.example text eol=lf
 Dockerfile text eol=lf
 *.Dockerfile text eol=lf

@@ -48,6 +48,11 @@ pub fn save_settings(
 }
 
 #[tauri::command]
+pub fn embedded_env_entries() -> Vec<crate::embedded_env::Entry> {
+    crate::embedded_env::entries()
+}
+
+#[tauri::command]
 pub async fn start_agent(
     app: AppHandle,
     state: State<'_, AppState>,
